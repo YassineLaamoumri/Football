@@ -1,5 +1,5 @@
 ---
-title: "Projet"
+title: "Projet Football"
 author: "Luweh Adjim Ngarti Exaucé & Laamoumri Yassine"
 date: "01/02/2022"
 output: html_document
@@ -9,14 +9,28 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+# Description du projet
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Le football est un sport populaire suscitant un grand intérêt aux quatres coins du monde.
+Avec l'avenement de la collecte massives de données dans ce sport, il est naturel de se demander comment les utiliser pour améliorer les performances des équipes et créer encore plus de spectacle.
+En effet, durant chaque match des centaines de statistiques sont calculées ce qui permet d'avoir un flux de données en continue qui ne demande qu'à être analyser pour y retrouver des interprétations que l'oeil humain aurait du mal à voir.
+
+
+# Objectif
+
+L'objectif de se projet sera tout d'abord de déterminer grâce à des méthodes de clustering quelles sont les profils des équipes selon leur position lors du classement final.
+Idéalement, l'objectif final serait de prédire la position d'une équipe dans le classement final
+
+
+# Base de données 
+
+
 
 ```{r cars}
 summary(cars)
+
+
 
 ```
 
