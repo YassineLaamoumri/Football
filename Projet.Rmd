@@ -25,6 +25,8 @@ Idéalement, l'objectif final serait de prédire la position d'une équipe dans 
 
 # Base de données 
 
+Les données que nous allons utiliser sont issues de Transfermarket
+
 
 
 ```{r cars}
@@ -36,7 +38,7 @@ summary(cars)
 
 
 ## Including Plots
-
+TEST
 You can also embed plots, for example:
 
 ```{r pressure, echo=FALSE}
