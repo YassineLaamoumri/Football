@@ -25,14 +25,78 @@ Idéalement, l'objectif final serait de prédire la position d'une équipe dans 
 
 # Base de données 
 
+Notre base de données est issue du site **understat** qui collecte les données championnats européens. Nous avons récupéré deux fichiers csv :
+- *understat.com.csv*  qui correspond au classement d'une équipe à un moment donné de la saison
+- *understat_per_game.csv* qui correspond aux statistiques collectés pour chaque match
 
+L'ensemble des matchs ont eu lieu dans les 6 grands championnats européens entre 2014 et 2019 de nombreuses statistiques qui peuvent être propre au football tel que les **xG : Expected goals** que l'on détaillera plus tard.
+
+
+
+
+# Statistiques descriptives
 
 ```{r cars}
-summary(cars)
+library(tidyverse)
 
+data <- read_csv('Data/understat.com.csv')
 
+data <- data %>% rename(league = ...1,year = ...2)
+
+data_games <- read_csv('Data/understat_per_game.csv')
 
 ```
+
+
+
+```{r}
+glimpse(data)
+```
+
+
+
+```{r}
+glimpse(data_games)
+```
+
+Voici la liste des championnats présents dans notre base de données
+```{r}
+data_games %>% distinct(league)
+```
+
+```{r}
+liga_games_2019 <- data_games %>% filter(year==2019) %>% filter(league == 'La_liga')
+liga_2019 <-  data %>% filter(year==2019) %>% filter(league == 'La_liga')
+```
+
+
+On ajoute le nombre de matchs joués et le nombre de points cumulés afin d'avoir un suivi de l'évolution du classement des équipes.
+Le fait que chaque équipe joue 38 matchs par saison va nous permettre de créer cette nouvelle variable.
+
+
+
+
+```{r}
+liga_games_2019 <-  liga_games_2019 %>% mutate(game = rep(seq(1,38,1),20))
+liga_games_2019 <- liga_games_2019 %>% group_by(team) %>% mutate(actual_pts = cumsum(pts),actual_xpts = cumsum(xpts))
+```
+
+
+Voici la liste des clubs espagnols de première division
+
+```{r}
+liga_2019 %>% distinct(team)
+```
+
+
+
+
+
+
+
+
+
+
 
 
 ## Including Plots
