@@ -28,21 +28,415 @@ Idéalement, l'objectif final serait de prédire la position d'une équipe dans 
 Les données que nous allons utiliser sont issues de Transfermarket
 
 
+Notre base de données est issue du site **understat** qui collecte les données championnats européens. Nous avons récupéré deux fichiers csv :
+- *understat.com.csv*  qui correspond au classement d'une équipe à un moment donné de la saison
+- *understat_per_game.csv* qui correspond aux statistiques collectés pour chaque match
+
+L'ensemble des matchs ont eu lieu dans les 6 grands championnats européens entre 2014 et 2019 de nombreuses statistiques qui peuvent être propre au football tel que les **xG : Expected goals** que l'on détaillera plus tard.
+
+
+
+
+# Statistiques descriptives
 
 ```{r cars}
-summary(cars)
+library(tidyverse)
 
+data <- read_csv('Data/understat.com.csv')
+
+data <- data %>% rename(league = ...1,year = ...2, conceded = missed)
+
+data_games <- read_csv('Data/understat_per_game.csv')
+
+```
+
+
+
+```{r}
+glimpse(data)
+```
+
+
+
+```{r}
+glimpse(data_games)
+```
+
+Voici la liste des championnats présents dans notre base de données
+```{r}
+data_games %>% distinct(league)
+```
+
+```{r}
+liga_games_2019 <- data_games %>% filter(year==2019) %>% filter(league == 'La_liga')
+liga_2019 <-  data %>% filter(year==2019) %>% filter(league == 'La_liga')
+```
+
+
+On ajoute le nombre de matchs joués et le nombre de points cumulés afin d'avoir un suivi de l'évolution du classement des équipes.
+Le fait que chaque équipe joue 38 matchs par saison va nous permettre de créer cette nouvelle variable.
+
+
+
+
+```{r}
+liga_games_2019 <-  liga_games_2019 %>% mutate(game = rep(seq(1,38,1),20))
+liga_games_2019 <- liga_games_2019 %>% group_by(team) %>% mutate(actual_pts = cumsum(pts),actual_xpts = cumsum(xpts))
+```
+
+
+Voici la liste des clubs espagnols de première division
+
+```{r}
+liga_2019 %>% distinct(team)
+```
+
+
+
+Nous allons créer un nuage de points afin de voir si les équipes marquent plus de buts qu'ils ne devraient ou le cas contraire.
+
+
+
+```{r}
+library(ggrepel)
+liga_2019 %>% ggplot(aes(x=xG,y=scored,color=ifelse(xG > scored, "#5e9a78", "#ff4444"))) + geom_point() + geom_text_repel(aes(label=team)) +
+  labs(title = 'Expected Goals vs Goals') + xlab('Expected Goals') +
+  ylab('Goals') + geom_abline() +guides(fill=FALSE, color=FALSE) 
+```
+
+
+
+Les équipes au dessus de la droite marquent plus de buts qu'ils ne devraient et les équipes en dessous de la droite marquent moins de but qu'ils ne devraient.
+Par exemple le FC Barcelone marque plus de but qu'ils ne devraient et l'Espanyol Barcelone marquent moins de buts qu'ils ne devraient.
+On voit clairement ici que Lionel Messi a influencé énormément sur le jeu du FC Barcelone.
+
+
+
+
+
+Faisons le même graphique mais avec les expected assists.
+
+
+
+```{r}
+liga_2019 <- liga_2019 %>% mutate(assists = floor(xGA + xGA_diff),.after = pts)
+
+```
+
+
+
+```{r}
+liga_2019 %>% ggplot(aes(x=xGA,y=assists,color=ifelse(xGA > assists, "#5e9a78", "#ff4444"))) + geom_point() + geom_text_repel(aes(label=team)) +
+  labs(title = 'Expected Assists vs Assists') + xlab('Expected Assists') +
+  ylab('Assists') + geom_abline() +guides(fill=FALSE, color=FALSE) 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+Nous allons maintenant affiché la différence entre le nombre de buts marqués et les expected goals de chaque équipe.
+
+
+
+
+```{r}
+library(forcats)
+plot4 <- liga_2019 %>% arrange(position) %>% ggplot(aes(x =fct_reorder(team, position), y = xG_diff,fill =team)) + geom_bar(stat = 'identity') + xlab('Team') + guides(fill=FALSE, color=FALSE) 
+
+ggplotly(plot4)
+```
+
+
+
+Faisons la même chose avec la différence entre le nombre de passes décisives et les expected assists.
+
+
+
+
+```{r}
+library(forcats)
+
+plot3 <- liga_2019 %>% arrange(position) %>% ggplot(aes(x =fct_reorder(team, position), y = xGA_diff,fill =team)) + geom_bar(stat = 'identity') + xlab('Team') + guides(fill=FALSE, color=FALSE) 
+
+ggplotly(plot3)
+```
+
+
+Le fait que le FC Barcelone ait une xGA_diff proche de 0 mais que xG_diff a une valeur négatif montre le fait que cela est contradictoire et que l'on devrait avoir logiquement une valeur de xGA_diff avec une grande valeur négatif.
+Or, ce n'est pas le cas ce qui signifie que le fruits des buts du FC Barcelone sont issues d'exploits individuels et non de jeu collectif bien huilé.
+Lorsque l'on analyse les matchs de plus près en les visionnant, on se rend compte qu'effectivement Lionel Messi marquent des buts improbables que ce soit sur coup francs ou bien en ayant une action en solitaire se concluant sur un but.
+Avec presque 200 dribbles réussis cet saison, il est de loin le meilleur dribbleur du championnat.
+
+
+
+
+Nous allons calculer le total de buts + passes décisives et comparer cette valeur avec le total de expected goals + expected assists. 
+
+
+
+
+```{r}
+library(forcats)
+library(reshape2)
+library(plotly)
+#On calcule les totaux
+df <- liga_2019 %>% group_by(team) %>% summarize(total = scored +assists, total_x = xG + xGA,position = position)
+
+#On fusionne nos colonnes totaux afin de pouvoir crée un diagramme avec deux bâtons
+df2 <- melt(df,id.vars= 'team') %>% left_join(liga_2019,by = 'team') %>% 
+  select(team,variable,value,position) %>% slice(1:40)
+
+
+
+
+ plot <- df2 %>% ggplot(aes(x =fct_reorder(team, position),y=value,fill=variable)) + geom_bar(stat = 'identity',position = position_dodge()) + xlab('Team') +scale_fill_discrete(name = "Total", labels = c("G + A", "xG + xGA"))
+ 
+ggplotly(plot)
+```
+
+
+Représentons l'évolution du classement au fil du temps.
+
+
+```{r}
+library(gganimate)
+data_bar_race_ranking <- liga_games_2019 %>%
+  group_by(game) %>%
+  arrange(game,desc(actual_pts)) %>%
+  mutate(ranking = row_number()) 
+
+
+
+bar_race_ranking <- data_bar_race_ranking %>%
+  ggplot()+
+  geom_col(aes(ranking,actual_pts,fill=team))+
+  geom_text(aes(ranking,actual_pts,label=actual_pts,hjust=-0.1))+
+  geom_text(aes(ranking,y=0,label=team),hjust=1.1)+
+  geom_text(aes(x=15,y=max(actual_pts),label=as.factor(game)),vjust=0.2,alpha=0.5,color='grey',size=20)+
+  coord_flip(clip='off',expand = FALSE)+scale_x_reverse()+
+  theme_minimal() + theme(
+    panel.grid=element_blank(),
+    legend.position = 'none',
+    axis.ticks.y =element_blank(),
+    axis.title = element_blank(),
+    axis.text.y=element_blank(),
+    plot.margin = margin(1,4,1,5,'cm')
+  )+
+  transition_states(game,state_length = 0,transition_length = 1)+
+  enter_fade()+
+  exit_fade()+
+  ease_aes('quadratic-in-out')
 
 
 ```
 
 
-## Including Plots
-TEST
-You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+
+```{r}
+animate(
+    plot = bar_race_ranking,
+    render = gifski_renderer(),
+    height = 600,
+    width = 1000, 
+    duration = 40,
+    fps = 25)
+
+anim_save('bar_race_ranking.gif')
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+Faisons le même graphique mais avec le classement non pas avec les points réels mais avec les **expected points**.
+
+
+
+```{r}
+data_bar_race_ranking_xpts <- liga_games_2019 %>%
+  group_by(game) %>%
+  arrange(game,desc(actual_xpts)) %>%
+  mutate(ranking = row_number()) 
+
+
+
+bar_race_ranking_xpts <- data_bar_race_ranking_xpts %>%
+  ggplot()+
+  geom_col(aes(ranking,actual_xpts,fill=team))+
+  geom_text(aes(ranking,actual_xpts,label=actual_xpts,hjust=-0.1))+
+  geom_text(aes(ranking,y=0,label=team),hjust=1.1)+
+  geom_text(aes(x=15,y=max(actual_xpts),label=as.factor(game)),vjust=0.2,alpha=0.5,color='grey',size=20)+
+  coord_flip(clip='off',expand = FALSE)+scale_x_reverse()+
+  theme_minimal() + theme(
+    panel.grid=element_blank(),
+    legend.position = 'none',
+    axis.ticks.y =element_blank(),
+    axis.title = element_blank(),
+    axis.text.y=element_blank(),
+    plot.margin = margin(1,4,1,5,'cm')
+  )+
+  transition_states(game,state_length = 0,transition_length = 1)+
+  enter_fade()+
+  exit_fade()+
+  ease_aes('quadratic-in-out')
+
+
+```
+
+
+
+```{r}
+
+animate(
+    plot = bar_race_ranking_xpts,
+    render = gifski_renderer(),
+    height = 600,
+    width = 1000, 
+    duration = 40,
+    fps = 25)
+
+anim_save('bar_race_ranking_xpts.gif')
+```
+
+
+
+
+Nous allons représenter l'évolution du classement réel avec un autre graphique.
+
+
+
+```{r}
+library(ggbump)
+top = 20
+
+liga_games_rank_pts_2019 <- liga_games_2019  %>%
+  group_by(game) %>%
+  arrange(game,desc(actual_pts)) %>%
+  mutate(ranking = row_number()) %>% 
+  ungroup() 
+
+
+plot2 <- liga_games_2019  %>%
+  group_by(game) %>%
+  arrange(game,desc(actual_pts)) %>%
+  mutate(ranking = row_number()) %>% 
+  ungroup() %>%  
+  ggplot(aes(x = game, y = ranking, color = team)) +
+  geom_bump(size = 1.5) +
+  geom_point(aes(color = team, alpha = 1), size = 4) +
+  geom_point(color = "#FFFFFF", size = 1) +
+  scale_y_reverse(breaks = 1:top) 
+
+ggplotly(plot2)
+
+```
+
+Nous allons représenter l'évolution du classement avec les expected points.
+
+
+```{r}
+library(ggbump)
+top = 20
+
+liga_games_rank_xpts_2019 <- liga_games_2019  %>%
+  group_by(game) %>%
+  arrange(game,desc(actual_xpts)) %>%
+  mutate(ranking = row_number()) %>% 
+  ungroup() 
+
+
+plot3 <- liga_games_2019  %>%
+  group_by(game) %>%
+  arrange(game,desc(actual_xpts)) %>%
+  mutate(ranking = row_number()) %>% 
+  ungroup() %>%  
+  ggplot(aes(x = game, y = ranking, color = team)) +
+  geom_bump(size = 1.5) +
+  geom_point(aes(color = team, alpha = 1), size = 4) +
+  geom_point(color = "#FFFFFF", size = 1) +
+  scale_y_reverse(breaks = 1:20) 
+
+ggplotly(plot3)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Tentative Nouvelles données
+
+CELA MARCHE MAIS ON VERRA PLUS TARD
+
+
+```{r}
+library(rjson)
+library(data.table)
+competitions <- fromJSON(file="open-data-master\\data\\competitions.json")
+
+competitions <- data.frame(do.call(rbind,competitions),stringsAsFactors = FALSE)
+
+```
+
+
+
+
+
+
+
+```{r}
+####Obtain Matches####
+match.files <- list.files(path="open-data-master\\data\\matches",
+           full.names = TRUE,recursive = TRUE)
+
+matches.list <- list()
+for(i in 1:length(match.files)){
+  match.temp <- fromJSON(file=match.files[i]) ##Loop through each file which contains all the matches for a given competition and season and obtain the necessary match information
+  
+  matches <- lapply(match.temp, function(x) data.frame(t(unlist(x)),stringsAsFactors = FALSE))
+  matches.df <- rbindlist(matches,fill=TRUE) #we use rbindlist instead of do.call(rbind,) because of column mismatch
+  matches.list[[i]] <- matches.df #this assigns matches.df to the matches.list list that we initialized 
+  
+}
+
+all.matches.df <- data.frame(rbindlist(matches.list,fill=TRUE)) ###Combines all matches from all competitions into one dataframe
+
+###we are going to remove a lot of columns to just make our dataset clean
+columns.to.keep <- names(which(unlist(lapply(all.matches.df,function(x) length(which(is.na(x)))))==0))
+
+all.matches.clean <- all.matches.df[,columns.to.keep] #this selects the columns by column name 
+all.matches.clean$match_week <- as.numeric(all.matches.clean$match_week) #convert some variables to numeric
+all.matches.clean$home_score <- as.numeric(all.matches.clean$home_score)
+all.matches.clean$away_score <- as.numeric(all.matches.clean$away_score)
+
+```
+
+
+On récupère les matchs de la Liga 2019
+
+
+```{r}
+matches_liga_2019 <- all.matches.clean[which(all.matches.clean$competition.competition_id==11 & all.matches.clean$season.season_id==4),]
+
+```
+
